@@ -4,6 +4,7 @@ from scrapy import signals
 from scrapy.spiders import CrawlSpider
 import json
 import os
+import pandas as pd
 import urllib.parse
 from crawl.items import YPAgent
 from datetime import datetime
@@ -12,20 +13,13 @@ from dateutil.parser import parse as timeParser
 '''
 scrape YP
 
-https://www.yellowpages.com/search?search_terms=insurance&geo_location_terms=New%20York%2C%20NY
-
-scrapy crawl yp_insurance -a searchTerm=insurance -a statsFile=stats.csv -o data.json
+https://www.yellowpages.com/
 
 scrapy crawl yp_insurance \
--a seedfile=data.csv \
+-a seedsFile='seeds/seeds.json' \
+-a searchTerm=insurance \
 -a statsFile=stats.csv \
--a errorFile=errors.csv \
--s DEPTH_LIMIT=2 \
--s es=True \
--s s3=False \
--o data.json \
--t json \
---logfile logs/log.txt
+-o data.json
 
 '''
 class CrawlerSpider(CrawlSpider):
@@ -47,23 +41,25 @@ class CrawlerSpider(CrawlSpider):
         crawler.signals.connect(spider.spider_closed, signal=signals.spider_closed)
         return spider
 
-    def __init__(self,searchTerm: str='insurance',statsFile: str='stats.csv') -> None:
+    def __init__(self,seedsFile: str='seeds/seeds.json',
+                 searchTerm: str='insurance',
+                 statsFile: str='stats.csv') -> None:
 
         self.statsFile = statsFile
 
         self.ypBase = 'https://www.yellowpages.com/'
         self.query = searchTerm
 
+        #self.locations = self.readSeeds(seedsFile)
+
         self.locations = ['new-york-ny']
-
-        #self.dataDir = 'data/transactions'
-
-        # self.transFile = os.path.join(self.dataDir, filename)
-        # os.makedirs(os.path.dirname(self.transFile), exist_ok=True)
 
         super(CrawlerSpider, self).__init__()
 
-    def spider_opened2(self,spider):
+    def readSeeds(self,seedsFile: str) -> pd.DataFrame:
+        return pd.read_json(seedsFile,orient='index').transpose()
+
+    def spider_opened(self,spider):
         """ Handler for spider_closed signal. see:
         https://doc.scrapy.org/en/latest/topics/signals.html
         """
@@ -74,11 +70,6 @@ class CrawlerSpider(CrawlSpider):
         https://doc.scrapy.org/en/latest/topics/signals.html
         pandas.read_json('injuries.json')
         """
-        # print('writing ({}) rows of data to: {}'.format(len(self.data),self.transFile))
-        # with open(self.transFile, 'w') as fp:
-        #     json.dump(self.data, fp)
-
-
         with open(self.statsFile, 'w') as fp:
             d=self.crawler.stats.get_stats()
             d['start_time']=d['start_time'].isoformat()
@@ -89,43 +80,16 @@ class CrawlerSpider(CrawlSpider):
 
         spider.logger.info('Spider closed: %s', spider.name)
 
-
-    def start_requests2(self,page: int=1) -> None:
+    def start_requests(self,page: int=1) -> None:
         for location in self.locations:
-            #url_i = urllib.parse.quote_plus(self.searchBaseURL+'&geo_location_terms={}'.format(location))
-            seed = self.searchBaseURL+'&geo_location_terms={}&page={}'.format(location,page)
-            yield scrapy.Request(url=seed,callback=self.parse, meta={'location': location,'page':page})
-
-    def start_requests(self,query: str="insurance",page: int=1) -> None:
-        for location in self.locations:
-            qterm = location+"/"+query+"?page={}".format(page)
+            qterm = location+"/"+self.query+"?page={}".format(page)
             seed = urllib.parse.urljoin(self.ypBase, qterm)
             yield scrapy.Request(url=seed,callback=self.parse, meta={'location': location,'page':page})
 
-    def get_detail_page_UR2L(self,response):
-        print('\n\n\n')
-        print('-'*100)
-        print('getting urls')
-        self.logger.info('getting urls')
-        print(response.request.meta)
-        yp_urls = response.xpath("//a[@class='business-name']/@href").extract()
-        for yp_url in yp_urls:
-            yp_url = urllib.parse.urljoin(self.ypBase,yp_url)
-            print('\n\n\n')
-            print(yp_url)
-
-    def get_detail_page_URL(self,response):
-        # YP url
-        yp_urls = response.xpath("//a[@class='business-name']/@href").extract()
-        for yp_url in yp_urls:
-            yp_url = urllib.parse.urljoin(self.ypBase,yp_url)
-            yield scrapy.Request(url=yp_url, callback=self.parseDetailPage, meta={'depth': 1})
-
-    def containsSubStrClass(self,className):
-        return "//div[contains(concat(' ', normalize-space(@class), ' '), '{}')]".format(className)
+    # def containsSubStrClass(self,className):
+    #     return "//div[contains(concat(' ', normalize-space(@class), ' '), '{}')]".format(className)
 
     def get_detail_page_info(self,response):
-
         agent = YPAgent()
 
         agent['yp_url'] = response.url
@@ -218,13 +182,6 @@ class CrawlerSpider(CrawlSpider):
             agent['products'] = data
         except:
             pass
-        # try:
-        #     brand = response.xpath("//dt[@class='Services/Products']/text()").get()
-        #     if not brand:
-        #         brand = response.xpath("//dd[@class='brands']/text()").get()
-        #     agent['brands'] = brand
-        # except:
-        #     pass
         try:
             agent['brands'] = response.xpath("//dd[@class='brands']/text()").get()
         except:
@@ -286,10 +243,6 @@ class CrawlerSpider(CrawlSpider):
         except:
             pass
 
-        print('\n\n\n')
-        print(agent)
-        print('\n\n\n')
-
         return agent
 
     def parse(self, response):
@@ -302,13 +255,23 @@ class CrawlerSpider(CrawlSpider):
             self.pages = int(numResults/len(yp_urls))
 
         for yp_url in yp_urls:
-            # print('-'*100)
-            # print(yp_url)
-            # print(self.ypBase)
             yp_url = urllib.parse.urljoin(self.ypBase, yp_url)
             yield scrapy.Request(url=yp_url, callback=self.parseDetailPage)
 
-        #response.xpath('//a[@class="next ajax-page"]/@href').get()
+        # check if there isa 'next' page
+        # xpath return format: '/burlington-vt/insurance?page=2'
+        nextPageURL = response.xpath('//a[@class="next ajax-page"]/@href').get()
+        if nextPageURL:
+            location = nextPageURL.split('/')[1]
+            page = int(nextPageURL.split('page=')[1])
+            seed = urllib.parse.urljoin(self.ypBase, nextPageURL)
+            # print('='*50)
+            # print(location)
+            # print(page)
+            # print(seed)
+            # print('='*50)
+            yield scrapy.Request(url=seed, callback=self.parse, meta={'location': location, 'page': page})
+
 
     def parseDetailPage(self,response):
         #self.logger.info('parsing: {}'.format(response.url))

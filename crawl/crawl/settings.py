@@ -16,7 +16,7 @@ NEWSPIDER_MODULE = 'crawl.spiders'
 
 
 LOG_ENABLED=True
-LOG_LEVEL = 'DEBUG'
+LOG_LEVEL = 'INFO'
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'crawl (+http://www.yourdomain.com)'
