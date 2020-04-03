@@ -52,9 +52,9 @@ class CrawlerSpider(CrawlSpider):
         self.statsFile = statsFile
 
         self.ypBase = 'https://www.yellowpages.com/'
-        self.searchBaseURL = urllib.parse.urljoin(self.ypBase,'search?search_terms={}'.format(searchTerm))
+        self.query = searchTerm
 
-        self.locations = ['"New York, NY"']
+        self.locations = ['new-york-ny']
 
         #self.dataDir = 'data/transactions'
 
@@ -90,13 +90,17 @@ class CrawlerSpider(CrawlSpider):
         spider.logger.info('Spider closed: %s', spider.name)
 
 
-    def start_requests(self):
+    def start_requests2(self,page: int=1) -> None:
         for location in self.locations:
             #url_i = urllib.parse.quote_plus(self.searchBaseURL+'&geo_location_terms={}'.format(location))
-            seed = self.searchBaseURL+'&geo_location_terms={}'.format(location)
-            print('\n\n\n')
-            print('parsing: {}'.format(seed))
-            yield scrapy.Request(url=seed,callback=self.parse, meta={'location': location,'page':0,'depth': 0})
+            seed = self.searchBaseURL+'&geo_location_terms={}&page={}'.format(location,page)
+            yield scrapy.Request(url=seed,callback=self.parse, meta={'location': location,'page':page})
+
+    def start_requests(self,query: str="insurance",page: int=1) -> None:
+        for location in self.locations:
+            qterm = location+"/"+query+"?page={}".format(page)
+            seed = urllib.parse.urljoin(self.ypBase, qterm)
+            yield scrapy.Request(url=seed,callback=self.parse, meta={'location': location,'page':page})
 
     def get_detail_page_UR2L(self,response):
         print('\n\n\n')
@@ -111,10 +115,6 @@ class CrawlerSpider(CrawlSpider):
             print(yp_url)
 
     def get_detail_page_URL(self,response):
-        print('\n\n\n')
-        print('-'*100)
-        print('getting urls')
-        self.logger.info('getting urls')
         # YP url
         yp_urls = response.xpath("//a[@class='business-name']/@href").extract()
         for yp_url in yp_urls:
@@ -126,17 +126,11 @@ class CrawlerSpider(CrawlSpider):
 
     def get_detail_page_info(self,response):
 
-        lastmodified,depth= None,None
-
-        if 'Last-Modified' in response.headers and response.headers['Last-Modified']:
-            lastmodified = timeParser(response.headers['Last-Modified']).isoformat()
-
         agent = YPAgent()
 
         agent['yp_url'] = response.url
         agent['status'] = response.status
         agent['crawlDate'] = datetime.now().isoformat()
-        agent['lastmodified'] = lastmodified
 
         # contact
         try:
@@ -179,13 +173,13 @@ class CrawlerSpider(CrawlSpider):
         except:
             pass
         try:
-            agent['accreditation'] = response.xpath('//dd[@class="accreditation"]/p/text()').get()
+            agent['accreditation'] = response.xpath('//dd[@class="accreditation"]/p/text()').getall()
         except:
             pass
         try:
-            associations = response.xpath('//dd[@class="associations"]/text()').get()
+            associations = response.xpath('//dd[@class="associations"]/text()').getall()
             if not associations:
-                associations = response.xpath('//dd[@class="associations"]/p/text()').get()
+                associations = response.xpath('//dd[@class="associations"]/p/text()').getall()
             agent['associations'] = associations
         except:
             pass
@@ -219,7 +213,9 @@ class CrawlerSpider(CrawlSpider):
             data = response.xpath("//dt[text()='Services/Products']/following-sibling::dd[1]/text()").get()
             if len(data.strip()) < 1:
                 data = response.xpath("//dt[text()='Services/Products']/following-sibling::dd/p/text()").getall()
-            agent['services'] = data
+            if len(data.strip()) < 1:
+                data = response.xpath("//dt[text()='Services/Products']/following-sibling::dd//li/text()").getall()
+            agent['products'] = data
         except:
             pass
         # try:
@@ -254,7 +250,7 @@ class CrawlerSpider(CrawlSpider):
         except:
             pass
         try:
-            agent['cats'] = list(set(response.xpath("//dd[@class='categories']/span/a/text()").getall()))
+            agent['categories'] = list(set(response.xpath("//dd[@class='categories']/span/a/text()").getall()))
         except:
             pass
         #side
@@ -297,15 +293,22 @@ class CrawlerSpider(CrawlSpider):
         return agent
 
     def parse(self, response):
-        # get total number of results for top-level query
-        numResults = int(response.xpath('//div[@class="pagination"]/p/text()').get())
-
         # get agent links on 1 result page
-        yp_urls = response.xpath("//a[@class='business-name']/@href").extract()
+        yp_urls = response.xpath('//div[@class="search-results organic"]/div[@class="result"]//a[@class="business-name"]/@href').getall()
+
+        if response.meta['page'] == 1:
+            # get total number of results for top-level query
+            numResults = int(response.xpath('//div[@class="pagination"]/p/text()').get())
+            self.pages = int(numResults/len(yp_urls))
 
         for yp_url in yp_urls:
+            # print('-'*100)
+            # print(yp_url)
+            # print(self.ypBase)
             yp_url = urllib.parse.urljoin(self.ypBase, yp_url)
             yield scrapy.Request(url=yp_url, callback=self.parseDetailPage)
+
+        #response.xpath('//a[@class="next ajax-page"]/@href').get()
 
     def parseDetailPage(self,response):
         #self.logger.info('parsing: {}'.format(response.url))
