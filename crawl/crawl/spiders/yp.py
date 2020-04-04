@@ -18,8 +18,9 @@ https://www.yellowpages.com/
 scrapy crawl yp_insurance \
 -a seedsFile='seeds/seeds.json' \
 -a searchTerm=insurance \
--a statsFile=stats.csv \
--o data.json
+-a statsFile=stats2.json \
+-a failedFile=failed.txt \
+-o data2.json
 
 '''
 class CrawlerSpider(CrawlSpider):
@@ -43,9 +44,18 @@ class CrawlerSpider(CrawlSpider):
 
     def __init__(self,seedsFile: str='seeds/seeds.json',
                  searchTerm: str='insurance',
-                 statsFile: str='stats.csv') -> None:
+                 statsFile: str='stats.json',
+                 failedFile: str='failed.txt') -> None:
+
+        self.statsDir = 'stats'
+        statsFile = os.path.join(self.statsDir, statsFile)
+        os.makedirs(os.path.dirname(statsFile), exist_ok=True)
+
+        failedFile = os.path.join(self.statsDir, failedFile)
+        os.makedirs(os.path.dirname(failedFile), exist_ok=True)
 
         self.statsFile = statsFile
+        self.failedurls = failedFile
 
         self.ypBase = 'https://www.yellowpages.com/'
         self.query = searchTerm
@@ -53,6 +63,8 @@ class CrawlerSpider(CrawlSpider):
         #self.locations = self.readSeeds(seedsFile)
 
         self.locations = ['new-york-ny']
+
+        self.failed_urls = []
 
         super(CrawlerSpider, self).__init__()
 
@@ -70,11 +82,17 @@ class CrawlerSpider(CrawlSpider):
         https://doc.scrapy.org/en/latest/topics/signals.html
         pandas.read_json('injuries.json')
         """
+        self.crawler.stats.set_value('failed_urls', len(self.failed_urls))
+
         with open(self.statsFile, 'w') as fp:
             d=self.crawler.stats.get_stats()
             d['start_time']=d['start_time'].isoformat()
             d['finish_time']=d['finish_time'].isoformat()
             json.dump(d, fp)
+
+        with open(self.failedurls, 'w') as fp:
+            for u in self.failed_urls:
+                fp.write(u+"\n")
 
         #self.errorFile.close()
 
@@ -246,6 +264,10 @@ class CrawlerSpider(CrawlSpider):
         return agent
 
     def parse(self, response):
+        if response.status == 404:
+            self.crawler.stats.inc_value('failed_url_count')
+            self.failed_urls.append(response.url)
+
         # get agent links on 1 result page
         yp_urls = response.xpath('//div[@class="search-results organic"]/div[@class="result"]//a[@class="business-name"]/@href').getall()
 
@@ -265,14 +287,17 @@ class CrawlerSpider(CrawlSpider):
             location = nextPageURL.split('/')[1]
             page = int(nextPageURL.split('page=')[1])
             seed = urllib.parse.urljoin(self.ypBase, nextPageURL)
-            # print('='*50)
-            # print(location)
-            # print(page)
-            # print(seed)
-            # print('='*50)
             yield scrapy.Request(url=seed, callback=self.parse, meta={'location': location, 'page': page})
 
 
     def parseDetailPage(self,response):
+        if response.status == 404:
+            self.crawler.stats.inc_value('failed_url_count')
+            self.failed_urls.append(response.url)
         #self.logger.info('parsing: {}'.format(response.url))
         return self.get_detail_page_info(response)
+
+    def process_exception(self, response, exception, spider):
+        ex_class = "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__)
+        self.crawler.stats.inc_value('downloader/exception_count', spider=spider)
+        self.crawler.stats.inc_value('downloader/exception_type_count/%s' % ex_class, spider=spider)
