@@ -14,16 +14,6 @@ https://www.yellowpages.com/search?search_terms=insurance&geo_location_terms=New
 
 scrapy crawl yp_locations -a statsFile=cities_stats.csv -a seedsFile=seeds.json
 
-scrapy crawl yp_insurance \
--a seedfile=data.csv \
--a statsFile=stats.csv \
--a errorFile=errors.csv \
--s DEPTH_LIMIT=2 \
--s es=True \
--s s3=False \
--o data.json \
--t json \
---logfile logs/log.txt
 '''
 class CrawlerSpider(CrawlSpider):
     name = "yp_locations"

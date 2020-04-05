@@ -1,0 +1,12 @@
+name: insuredata-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy=1.18.1
+  - pandas=1.0.1
+  - pip=20.0.2
+  - scrapy=1.8.0
+  - stem
+  - pip:                            # Packages installed from PyPI
+    - requests==2.21.0
