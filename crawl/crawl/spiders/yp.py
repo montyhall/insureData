@@ -18,9 +18,9 @@ https://www.yellowpages.com/
 scrapy crawl yp_insurance \
 -a seedsFile='seeds/seeds.json' \
 -a searchTerm=insurance \
--a statsFile=stats2.json \
+-a statsFile=stats.json \
 -a failedFile=failed.txt \
--o data2.json
+-o data.json
 
 '''
 class CrawlerSpider(CrawlSpider):
@@ -264,6 +264,8 @@ class CrawlerSpider(CrawlSpider):
         return agent
 
     def parse(self, response):
+        if response.meta['page'] > 2:
+            pass
         if response.status == 404:
             self.crawler.stats.inc_value('failed_url_count')
             self.failed_urls.append(response.url)

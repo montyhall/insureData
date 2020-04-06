@@ -62,7 +62,7 @@ COOKIES_ENABLED = False
 # See https://doc.scrapy.org/en/latest/topics/downloader-middleware.html
 DOWNLOADER_MIDDLEWARES = {
     #'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 110,
-    'crawl.tor.TorMiddleware': 100,
+    #'crawl.tor.TorMiddleware': 100,
 }
 
 # Enable or disable extensions
