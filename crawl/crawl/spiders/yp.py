@@ -16,12 +16,12 @@ scrape YP
 https://www.yellowpages.com/
 
 scrapy crawl yp_insurance \
--a seedsFile='seeds/seeds.json' \
+-a seedsFile='seeds/seeds.json.gz' \
 -a searchTerm=insurance \
--a statsFile=stats3.json \
--a errorFile=errors3.txt \
--a failedFile=failed3.txt \
--o data3.json
+-a statsFile=stats.json \
+-a errorFile=errors.txt \
+-a failedFile=failed.txt \
+-o data.json
 
 '''
 class CrawlerSpider(CrawlSpider):
@@ -46,7 +46,7 @@ class CrawlerSpider(CrawlSpider):
 
     def __init__(self,seedsFile: str='seeds/seeds.json',
                  searchTerm: str='insurance',
-                 statsFile: str='stats.json',
+                 statsFile: str='stats.json.gz',
                  errorFile: str = 'errors.txt',
                  failedFile: str='failed.txt') -> None:
 
