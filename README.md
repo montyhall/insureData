@@ -9,6 +9,9 @@ insurance data pipelines
 > conda env create; conda activate insuredata-env
 ```
 
+Then follow [these steps](https://gist.github.com/DusanMadar/8d11026b7ce0bce6a67f7dd87b999f6b) to install
+* `tor`, `privoxy` `TorIpChanger` 
+        
 # Steps
 
 We use [scrapy](https://scrapy.org/) to scrape EDGAR site. Set `$CRAWLER_ROOT` to be where `crawler` directory is
