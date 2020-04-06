@@ -43,6 +43,9 @@ CONCURRENT_REQUESTS_PER_IP = 32
 # Disable cookies (enabled by default)
 COOKIES_ENABLED = False
 
+#The maximum depth that will be allowed to crawl for any site. If zero, no limit will be imposed.
+#DEPTH_LIMIT = 1
+
 # Disable Telnet Console (enabled by default)
 #TELNETCONSOLE_ENABLED = False
 
