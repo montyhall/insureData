@@ -7,7 +7,6 @@ import json
 import os
 import pandas as pd
 import urllib.parse
-from crawl.items import YPAgent
 from datetime import datetime
 
 '''
@@ -15,7 +14,7 @@ scrape YP
 
 https://www.yellowpages.com/
 
-scrapy crawl yp_insurance \
+scrapy crawl bbb/bbb_smbs \
 -a seedsFile='seeds/seeds.json.gz' \
 -a searchTerm=insurance \
 -a statsFile=stats.json \
@@ -25,7 +24,11 @@ scrapy crawl yp_insurance \
 
 '''
 class CrawlerSpider(CrawlSpider):
-    name = "yp_insurance"
+    name = "bbb_smbs"
+
+    custom_settings = {
+        'ROBOTSTXT_OBEY': False,
+    }
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
@@ -52,24 +55,24 @@ class CrawlerSpider(CrawlSpider):
 
         self.statsDir = 'stats'
 
-        self.ypBase = 'https://www.yellowpages.com/'
-        self.query = searchTerm
+        self.ypBase = 'https://www.bbb.org/search?find_country=USA&find_type=Category&page=1'
+        self.query = '&find_loc=Brooklyn%2C%20NY&find_text=Restaurants'
 
-        self.locations = self.readSeeds(seedsFile)
+        #self.locations = self.readSeeds(seedsFile)
 
-        #self.locations = ['new-york-ny']
+        #self.locations = ['Brooklyn, NY']
 
-        self.statsFile = os.path.join(self.statsDir, statsFile)
-        os.makedirs(os.path.dirname(self.statsFile), exist_ok=True)
-
-        self.failedurls = os.path.join(self.statsDir, failedFile)
-        os.makedirs(os.path.dirname(self.failedurls), exist_ok=True)
-
-        self.errorFile = os.path.join(self.statsDir, errorFile)
-        os.makedirs(os.path.dirname(self.errorFile), exist_ok=True)
-
-        self.errors_fp = open(self.errorFile, 'w')
-        self.failed_fp = open(self.failedurls, 'w')
+        # self.statsFile = os.path.join(self.statsDir, statsFile)
+        # os.makedirs(os.path.dirname(self.statsFile), exist_ok=True)
+        #
+        # self.failedurls = os.path.join(self.statsDir, failedFile)
+        # os.makedirs(os.path.dirname(self.failedurls), exist_ok=True)
+        #
+        # self.errorFile = os.path.join(self.statsDir, errorFile)
+        # os.makedirs(os.path.dirname(self.errorFile), exist_ok=True)
+        #
+        # self.errors_fp = open(self.errorFile, 'w')
+        # self.failed_fp = open(self.failedurls, 'w')
 
         super(CrawlerSpider, self).__init__()
 
@@ -94,14 +97,14 @@ class CrawlerSpider(CrawlSpider):
         """
         #self.crawler.stats.set_value('failed_urls', len(self.failed_urls))
 
-        with open(self.statsFile, 'w') as fp:
-            d=self.crawler.stats.get_stats()
-            d['start_time']=d['start_time'].isoformat()
-            d['finish_time']=d['finish_time'].isoformat()
-            json.dump(d, fp)
-
-        self.errors_fp.close()
-        self.failed_fp.close()
+        # with open(self.statsFile, 'w') as fp:
+        #     d=self.crawler.stats.get_stats()
+        #     d['start_time']=d['start_time'].isoformat()
+        #     d['finish_time']=d['finish_time'].isoformat()
+        #     json.dump(d, fp)
+        #
+        # self.errors_fp.close()
+        # self.failed_fp.close()
         # with open(self.failedurls, 'w') as fp:
         #     for u in self.failed_urls:
         #         fp.write(u+"\n")
@@ -109,35 +112,11 @@ class CrawlerSpider(CrawlSpider):
         spider.logger.info('Spider closed: %s', spider.name)
 
     def start_requests(self,page: int=1) -> None:
-        size = self.locations.size
-        m=0
-        for i,state in enumerate(self.locations.columns):
-            stateAcronym = state.split('state-')[1]
-            for j,city in enumerate(self.locations[state]):
-                m+=1
-                if city:
-                    qterm = city + "/" + self.query + "?page={}".format(page)
-                    seed = urllib.parse.urljoin(self.ypBase, qterm)
-                    self.logger.info('state({}): {} \tcity({}/{} = {:.2f}%): {}'.format(i, stateAcronym,j,size,(m/size)*100,seed))
-                    # yield scrapy.Request(url=seed,
-                    #                      callback=self.parse,
-                    #                      errback=self.search_page_error,
-                    #                      meta={'state': stateAcronym,
-                    #                            'city':city,
-                    #                            'page':page})
-
-        # for i,location in self.locations.iterrows():
-        #
-        #     qterm = location+"/"+self.query+"?page={}".format(page)
-        #     seed = urllib.parse.urljoin(self.ypBase, qterm)
-        #     self.logger.info('starting ({})th state: {}'.format(i+1,seed))
-            # yield scrapy.Request(url=seed,
-            #                      callback=self.parse,
-            #                      errback=self.search_page_error,
-            #                      meta={'location': location,'page':page})
-
-    # def containsSubStrClass(self,className):
-    #     return "//div[contains(concat(' ', normalize-space(@class), ' '), '{}')]".format(className)
+        seed = self.ypBase+self.query
+        yield scrapy.Request(url=seed,
+                             callback=self.parse,
+                             errback=self.search_page_error,
+                             meta={'page':page})
 
     def get_detail_page_info(self,response):
         agent = YPAgent()
@@ -296,33 +275,10 @@ class CrawlerSpider(CrawlSpider):
         return agent
 
     def parse(self, response):
-        # get agent links on 1 result page
-        yp_urls = response.xpath('//div[@class="search-results organic"]/div[@class="result"]//a[@class="business-name"]/@href').getall()
-
-        # if response.meta['page'] == 1:
-        #     # get total number of results for top-level query
-        #     numResults = int(response.xpath('//div[@class="pagination"]/p/text()').get())
-        #     self.pages = int(numResults/len(yp_urls))
-
-        for yp_url in yp_urls:
-            yp_url = urllib.parse.urljoin(self.ypBase, yp_url)
-            yield scrapy.Request(url=yp_url,
-                                 callback=self.parseDetailPage,
-                                 errback=self.detailed_page_error)
-
-        # check if there isa 'next' page
-        # xpath return format: '/burlington-vt/insurance?page=2'
-        nextPageURL = response.xpath('//a[@class="next ajax-page"]/@href').get()
-        if nextPageURL:
-            location = nextPageURL.split('/')[1]
-            page = int(nextPageURL.split('page=')[1])
-            seed = urllib.parse.urljoin(self.ypBase, nextPageURL)
-            yield scrapy.Request(url=seed,
-                                 callback=self.parse,
-                                 errback=self.search_page_error,
-                                 meta={'state': response.meta['state'],
-                                       'city': response.meta['city'],
-                                       'page': page})
+        print('-'*100)
+        print(response.url)
+        print(response.body)
+        exit(0)
 
 
     def parseDetailPage(self,response):
@@ -334,6 +290,8 @@ class CrawlerSpider(CrawlSpider):
     #     self.crawler.stats.inc_value('downloader/exception_type_count/%s' % ex_class, spider=spider)
 
     def search_page_error(self,failure):
+        print('='*100)
+        print(failure)
         self.crawler.stats.inc_value('failed_search_url_count')
 
     def detailed_page_error(self,failure):

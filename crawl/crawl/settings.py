@@ -9,9 +9,9 @@
 #     https://doc.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://doc.scrapy.org/en/latest/topics/spider-middleware.html
 
-BOT_NAME = 'crawl'
+BOT_NAME = 'bupp'
 
-SPIDER_MODULES = ['crawl.spiders']
+SPIDER_MODULES = ['crawl.spiders','crawl.spiders.yelp','crawl.spiders.bbb']
 NEWSPIDER_MODULE = 'crawl.spiders'
 
 HTTP_PROXY='http://127.0.0.1:8118'
